@@ -1,0 +1,27 @@
+# Pods for the mutation test.
+apiVersion: v1
+kind: Pod
+metadata:
+  name: plain
+  namespace: team-a
+spec:
+  containers:
+    - name: app
+      image: registry.example.com/app:1.0.0
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: own-affinity
+  namespace: team-a
+spec:
+  affinity:
+    nodeAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        nodeSelectorTerms:
+          - matchExpressions:
+              - key: gpu
+                operator: Exists
+  containers:
+    - name: app
+      image: registry.example.com/app:1.0.0

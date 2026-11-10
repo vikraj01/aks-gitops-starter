@@ -1,0 +1,12 @@
+# Keeps one replica serving while the apps pool is drained for upgrades.
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: demo
+  labels:
+    app.kubernetes.io/name: demo
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: demo

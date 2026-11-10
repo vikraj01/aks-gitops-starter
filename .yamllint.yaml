@@ -1,0 +1,16 @@
+extends: default
+
+rules:
+  line-length:
+    max: 160
+  document-start: disable
+  truthy:
+    check-keys: false
+  comments:
+    min-spaces-from-content: 1
+  indentation:
+    indent-sequences: whatever
+
+ignore: |
+  gitops/apps/templates/
+  .terraform/

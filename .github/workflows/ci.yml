@@ -1,0 +1,108 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  TF_IN_AUTOMATION: "true"
+  TERRAFORM_VERSION: 1.16.4
+  TFLINT_VERSION: v0.55.0
+  HELM_VERSION: v3.16.3
+  KUBECONFORM_VERSION: v0.6.7
+  KYVERNO_VERSION: v1.19.2
+
+jobs:
+  terraform:
+    name: terraform (${{ matrix.root }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        root: [infra, infra/bootstrap]
+    defaults:
+      run:
+        working-directory: ${{ matrix.root }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TERRAFORM_VERSION }}
+          terraform_wrapper: false
+
+      - name: terraform fmt
+        run: terraform fmt -recursive -check -diff
+
+      - name: terraform init
+        run: terraform init -backend=false -input=false
+
+      - name: terraform validate
+        run: terraform validate
+
+      - uses: actions/cache@v4
+        with:
+          path: ~/.tflint.d/plugins
+          key: tflint-${{ hashFiles('.tflint.hcl') }}
+
+      - uses: terraform-linters/setup-tflint@v4
+        with:
+          tflint_version: ${{ env.TFLINT_VERSION }}
+
+      - name: tflint
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          tflint --init --config "$GITHUB_WORKSPACE/.tflint.hcl"
+          tflint --config "$GITHUB_WORKSPACE/.tflint.hcl" --format compact
+
+  manifests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install tools
+        run: |
+          pip install --user yamllint
+          curl -fsSL "https://get.helm.sh/helm-${HELM_VERSION}-linux-amd64.tar.gz" | tar xz -C /tmp
+          sudo install /tmp/linux-amd64/helm /usr/local/bin/helm
+          gh_release="https://github.com"
+          curl -fsSL "${gh_release}/yannh/kubeconform/releases/download/${KUBECONFORM_VERSION}/kubeconform-linux-amd64.tar.gz" \
+            | tar xz -C /tmp
+          sudo install /tmp/kubeconform /usr/local/bin/kubeconform
+          curl -fsSL "${gh_release}/kyverno/kyverno/releases/download/${KYVERNO_VERSION}/kyverno-cli_${KYVERNO_VERSION}_linux_x86_64.tar.gz" \
+            | tar xz -C /tmp kyverno
+          sudo install /tmp/kyverno /usr/local/bin/kyverno
+
+      - name: yamllint
+        run: yamllint --strict .
+
+      - name: Render the app-of-apps chart
+        run: |
+          helm lint gitops/apps --set repoURL=https://example.com/repo.git
+          mkdir -p rendered
+          helm template root gitops/apps --namespace argocd \
+            --set repoURL=https://example.com/repo.git > rendered/apps.yaml
+
+      # Core kinds from the Kubernetes schemas, CRDs (Argo CD Application)
+      # from the community CRD catalog. Kyverno policies are covered by the
+      # kyverno test step below, which loads them with the real engine.
+      - name: kubeconform
+        env:
+          CRD_CATALOG: https://raw.githubusercontent.com/datreeio/CRDs-catalog/main
+        run: |
+          kubeconform -strict -summary \
+            -schema-location default \
+            -schema-location "${CRD_CATALOG}/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json" \
+            rendered/apps.yaml gitops/workloads
+
+      - name: kyverno test
+        run: kyverno test policies/tests

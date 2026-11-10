@@ -1,0 +1,30 @@
+# Terraform working directories and state
+**/.terraform/*
+*.tfstate
+*.tfstate.*
+crash.log
+crash.*.log
+*.tfplan
+tfplan
+
+# Variable files can hold environment details; commit only the examples
+*.tfvars
+*.tfvars.json
+!*.tfvars.example
+
+# Local overrides
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+
+# CLI config and rendered output
+.terraformrc
+terraform.rc
+rendered/
+
+# Editors and OS
+.idea/
+.vscode/
+*.swp
+.DS_Store

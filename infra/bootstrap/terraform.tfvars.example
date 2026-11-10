@@ -1,0 +1,8 @@
+# Copy to terraform.tfvars and adjust. terraform.tfvars is gitignored.
+
+resource_group_name = "rg-gitops-starter"
+cluster_name        = "aks-gitops-starter"
+
+# Your fork of this repository.
+gitops_repo_url        = "https://github.com/<your-account>/aks-gitops-starter.git"
+gitops_target_revision = "main"

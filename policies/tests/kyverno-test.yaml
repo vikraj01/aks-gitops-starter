@@ -1,0 +1,64 @@
+apiVersion: cli.kyverno.io/v1alpha1
+kind: Test
+metadata:
+  name: starter-policies
+policies:
+  - ../require-requests-limits.yaml
+  - ../disallow-privileged-containers.yaml
+  - ../disallow-host-namespaces.yaml
+  - ../require-app-name-label.yaml
+  - ../mutate-pin-apps-to-dedicated-pool.yaml
+resources:
+  - resources.yaml
+  - mutate-resources.yaml
+variables: values.yaml
+results:
+  # Validation: compliant pod passes everything.
+  - policy: require-requests-limits
+    resources: [team-a/compliant]
+    kind: Pod
+    result: pass
+  - policy: disallow-privileged-containers
+    resources: [team-a/compliant]
+    kind: Pod
+    result: pass
+  - policy: disallow-host-namespaces
+    resources: [team-a/compliant]
+    kind: Pod
+    result: pass
+  - policy: require-app-name-label
+    resources: [team-a/compliant]
+    kind: Pod
+    result: pass
+  # Validation: non-compliant pod fails everything.
+  - policy: require-requests-limits
+    resources: [team-a/noncompliant]
+    kind: Pod
+    result: fail
+  - policy: disallow-privileged-containers
+    resources: [team-a/noncompliant]
+    kind: Pod
+    result: fail
+  - policy: disallow-host-namespaces
+    resources: [team-a/noncompliant]
+    kind: Pod
+    result: fail
+  - policy: require-app-name-label
+    resources: [team-a/noncompliant]
+    kind: Pod
+    result: fail
+  # Autogen: the same rules apply to the pod template of a Deployment.
+  - policy: require-requests-limits
+    resources: [team-a/noncompliant-deployment]
+    kind: Deployment
+    result: fail
+  - policy: require-app-name-label
+    resources: [team-a/noncompliant-deployment]
+    kind: Deployment
+    result: fail
+  # Mutation: toleration and affinity added; existing nodeAffinity kept.
+  - policy: pin-apps-to-dedicated-pool
+    resources: [team-a/plain, team-a/own-affinity]
+    kind: Pod
+    patchedResources: mutate-patched.yaml
+    result: pass

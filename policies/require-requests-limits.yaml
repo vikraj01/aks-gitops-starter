@@ -1,0 +1,43 @@
+# Starts in Audit: violations show up in PolicyReports, nothing is blocked.
+# Moving to Deny is described in the README, section "Audit first".
+apiVersion: policies.kyverno.io/v1
+kind: ValidatingPolicy
+metadata:
+  name: require-requests-limits
+  annotations:
+    policies.kyverno.io/title: Require resource requests and memory limits
+    policies.kyverno.io/category: Best Practices
+    policies.kyverno.io/severity: medium
+    policies.kyverno.io/description: >-
+      Every container must declare CPU and memory requests so the scheduler
+      and cluster autoscaler can place it, and a memory limit so one pod
+      cannot exhaust a node. A CPU limit is deliberately not required: it
+      causes throttling even when the node has idle CPU.
+spec:
+  validationActions:
+    - Audit
+  failurePolicy: Ignore
+  evaluation:
+    background:
+      enabled: true
+  matchConstraints:
+    resourceRules:
+      - apiGroups: [""]
+        apiVersions: ["v1"]
+        operations: ["CREATE", "UPDATE"]
+        resources: ["pods"]
+    namespaceSelector:
+      matchExpressions:
+        - key: kubernetes.io/metadata.name
+          operator: NotIn
+          values: [kube-system, kube-public, kube-node-lease, kyverno, argocd]
+  autogen:
+    podControllers:
+      controllers: [deployments, statefulsets, daemonsets, jobs, cronjobs]
+  validations:
+    - expression: >-
+        object.spec.containers.all(c,
+          'cpu' in c.?resources.?requests.orValue({}) &&
+          'memory' in c.?resources.?requests.orValue({}) &&
+          'memory' in c.?resources.?limits.orValue({}))
+      message: Every container must set resources.requests.cpu, resources.requests.memory and resources.limits.memory.

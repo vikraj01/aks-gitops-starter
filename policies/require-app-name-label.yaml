@@ -1,0 +1,38 @@
+# Starts in Audit: violations show up in PolicyReports, nothing is blocked.
+apiVersion: policies.kyverno.io/v1
+kind: ValidatingPolicy
+metadata:
+  name: require-app-name-label
+  annotations:
+    policies.kyverno.io/title: Require the app.kubernetes.io/name label
+    policies.kyverno.io/category: Best Practices
+    policies.kyverno.io/severity: low
+    policies.kyverno.io/description: >-
+      The recommended app.kubernetes.io/name label is what dashboards, cost
+      reports and Container Insights group by. Pods without it are hard to
+      attribute to an owner.
+spec:
+  validationActions:
+    - Audit
+  failurePolicy: Ignore
+  evaluation:
+    background:
+      enabled: true
+  matchConstraints:
+    resourceRules:
+      - apiGroups: [""]
+        apiVersions: ["v1"]
+        operations: ["CREATE", "UPDATE"]
+        resources: ["pods"]
+    namespaceSelector:
+      matchExpressions:
+        - key: kubernetes.io/metadata.name
+          operator: NotIn
+          values: [kube-system, kube-public, kube-node-lease, kyverno, argocd]
+  autogen:
+    podControllers:
+      controllers: [deployments, statefulsets, daemonsets, jobs, cronjobs]
+  validations:
+    - expression: >-
+        object.metadata.?labels[?'app.kubernetes.io/name'].orValue('') != ''
+      message: The label app.kubernetes.io/name must be set to a non-empty value.

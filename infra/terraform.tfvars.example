@@ -1,0 +1,13 @@
+# Copy to terraform.tfvars and adjust. terraform.tfvars is gitignored.
+
+name_prefix = "gitops-starter"
+location    = "westeurope"
+
+# Your public egress IP, for example from `curl -s https://ifconfig.me`.
+api_server_authorized_ip_ranges = ["203.0.113.10/32"]
+
+# Optional: Entra ID group object IDs that should administer the cluster.
+# cluster_admin_principal_ids = ["00000000-0000-0000-0000-000000000000"]
+
+# Production: paid control plane tier with an uptime SLA.
+# sku_tier = "Standard"

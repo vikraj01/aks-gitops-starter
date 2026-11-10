@@ -1,0 +1,9 @@
+# The workload-tier=apps label opts this namespace into the Kyverno mutation
+# that pins pods to the dedicated apps node pool.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: demo
+  labels:
+    app.kubernetes.io/name: demo
+    workload-tier: apps

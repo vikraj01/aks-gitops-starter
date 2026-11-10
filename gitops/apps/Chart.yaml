@@ -1,0 +1,5 @@
+apiVersion: v2
+name: apps
+description: App-of-apps root. Renders one Argo CD Application per platform component or workload.
+type: application
+version: 0.1.0

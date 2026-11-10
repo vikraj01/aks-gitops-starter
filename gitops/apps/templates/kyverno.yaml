@@ -1,0 +1,39 @@
+# Wave 0: the policy engine. Sync waves only wait on health between waves,
+# so the policies (wave 1) are applied once Kyverno reports Healthy.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: kyverno
+  namespace: "{{ .Release.Namespace }}"
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: https://kyverno.github.io/kyverno/
+    chart: kyverno
+    targetRevision: "{{ .Values.kyverno.chartVersion }}"
+    helm:
+      releaseName: kyverno
+      # Chart defaults run one replica per controller, fine for a starter.
+      # For production set admissionController.replicas to 3 and enable the
+      # PodDisruptionBudgets the chart provides.
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: kyverno
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      # Kyverno CRDs exceed the client-side apply annotation size limit.
+      - ServerSideApply=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 10s
+        factor: 2
+        maxDuration: 3m

@@ -1,0 +1,8 @@
+# Set by the root Application created in infra/bootstrap, so the repository
+# URL is defined once (the Terraform variable gitops_repo_url).
+repoURL: ""
+targetRevision: main
+
+# Pinned upstream chart. Bump deliberately and read the release notes first.
+kyverno:
+  chartVersion: 3.9.2

@@ -1,0 +1,46 @@
+# Expected result of the mutation policy on mutate-resources.yaml.
+apiVersion: v1
+kind: Pod
+metadata:
+  name: plain
+  namespace: team-a
+spec:
+  affinity:
+    nodeAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        nodeSelectorTerms:
+          - matchExpressions:
+              - key: workload
+                operator: In
+                values:
+                  - apps
+  containers:
+    - name: app
+      image: registry.example.com/app:1.0.0
+  tolerations:
+    - key: workload
+      operator: Equal
+      value: apps
+      effect: NoSchedule
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: own-affinity
+  namespace: team-a
+spec:
+  affinity:
+    nodeAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        nodeSelectorTerms:
+          - matchExpressions:
+              - key: gpu
+                operator: Exists
+  containers:
+    - name: app
+      image: registry.example.com/app:1.0.0
+  tolerations:
+    - key: workload
+      operator: Equal
+      value: apps
+      effect: NoSchedule

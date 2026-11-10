@@ -1,0 +1,92 @@
+# Pins application pods to the tainted apps node pool.
+#
+# Applies to pods created in namespaces labelled workload-tier=apps. It adds
+#   1. a toleration for workload=apps:NoSchedule, unless one for the key
+#      "workload" is already there, and
+#   2. a required nodeAffinity for nodes labelled workload=apps, unless the pod
+#      already has its own nodeAffinity (an explicit choice wins).
+# Teams only label their namespace; they do not need to know about pools.
+# Keep the key and value in sync with var.apps_pool_taint in infra/.
+apiVersion: policies.kyverno.io/v1
+kind: MutatingPolicy
+metadata:
+  name: pin-apps-to-dedicated-pool
+  annotations:
+    policies.kyverno.io/title: Pin application pods to the dedicated apps pool
+    policies.kyverno.io/category: Scheduling
+    policies.kyverno.io/severity: medium
+    policies.kyverno.io/description: >-
+      Adds a toleration and a nodeAffinity so that pods in namespaces
+      labelled workload-tier=apps run on the tainted user node pool and
+      nowhere else.
+spec:
+  # If Kyverno is unavailable, pods are still admitted. They then cannot use
+  # the apps pool (no toleration) and land on the system pool instead, which
+  # is visible and recoverable, rather than blocking every deployment.
+  failurePolicy: Ignore
+  matchConstraints:
+    resourceRules:
+      - apiGroups: [""]
+        apiVersions: ["v1"]
+        operations: ["CREATE"]
+        resources: ["pods"]
+    namespaceSelector:
+      matchLabels:
+        workload-tier: apps
+  # Mutate the pods themselves, not the controllers that create them, so the
+  # Deployment specs in git stay exactly as written and Argo CD sees no drift.
+  autogen:
+    podControllers:
+      controllers: []
+  variables:
+    - name: toleration
+      expression: >-
+        Object.spec.tolerations{
+          key: "workload",
+          operator: "Equal",
+          value: "apps",
+          effect: "NoSchedule"
+        }
+    - name: nodeAffinity
+      expression: >-
+        Object.spec.affinity.nodeAffinity{
+          requiredDuringSchedulingIgnoredDuringExecution:
+            Object.spec.affinity.nodeAffinity.requiredDuringSchedulingIgnoredDuringExecution{
+              nodeSelectorTerms: [
+                Object.spec.affinity.nodeAffinity.requiredDuringSchedulingIgnoredDuringExecution.nodeSelectorTerms{
+                  matchExpressions: [
+                    Object.spec.affinity.nodeAffinity.requiredDuringSchedulingIgnoredDuringExecution.nodeSelectorTerms.matchExpressions{
+                      key: "workload",
+                      operator: "In",
+                      values: ["apps"]
+                    }
+                  ]
+                }
+              ]
+            }
+        }
+    - name: hasAppsToleration
+      expression: >-
+        object.spec.?tolerations.orValue([]).exists(t, t.?key.orValue("") == "workload")
+  mutations:
+    # Toleration: create the list if the pod has none, then append.
+    - patchType: JSONPatch
+      jsonPatch:
+        expression: >-
+          variables.hasAppsToleration ? [] :
+            (has(object.spec.tolerations) ? [] :
+              [JSONPatch{op: "add", path: "/spec/tolerations", value: []}]) +
+            [JSONPatch{op: "add", path: "/spec/tolerations/-", value: variables.toleration}]
+    # Node affinity: only when the pod has not chosen its own.
+    - patchType: JSONPatch
+      jsonPatch:
+        expression: >-
+          !has(object.spec.affinity) ?
+            [JSONPatch{
+              op: "add",
+              path: "/spec/affinity",
+              value: Object.spec.affinity{nodeAffinity: variables.nodeAffinity}
+            }] :
+          !has(object.spec.affinity.nodeAffinity) ?
+            [JSONPatch{op: "add", path: "/spec/affinity/nodeAffinity", value: variables.nodeAffinity}] :
+            []
